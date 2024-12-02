@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Signature for {{ role.capitalize() }}</title>
+    <script src="{{ url_for('static', filename='signature.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <h1>Sign for {{ role.capitalize() }} - {{ student_name }} on {{ date }}</h1>
+    <canvas id="signature-pad" width="400" height="200" style="border:1px solid #000;"></canvas>
+    <br>
+    <button onclick="saveSignature()">Save Signature</button>
+    <script>
+        const studentName = "{{ student_name }}";
+        const date = "{{ date }}";
+        const role = "{{ role }}";
+
+        async function saveSignature() {
+            const canvas = document.getElementById("signature-pad");
+            const dataURL = canvas.toDataURL("image/png");
+            const signature = dataURL.split(",")[1];
+
+            const response = await fetch("/add_signature", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ student_name: studentName, date, role, signature }),
+            });
+
+            if (response.ok) {
+                alert("Signature saved successfully!");
+                window.location.href = "/weekly_report";
+            } else {
+                alert("Failed to save signature!");
+            }
+        }
+    </script>
+</body>
+</html>

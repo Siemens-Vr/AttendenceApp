@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Management</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center">Attendance Management System</h1>
+
+        <!-- Weekly Report Button -->
+        <div class="text-end mt-3">
+            <a href="{{ url_for('main.weekly_report') }}" class="btn btn-primary">View Weekly Report</a>
+        </div>
+        <!-- Reset Hours Button -->
+        <form method="POST" action="{{ url_for('main.reset_hours') }}" class="text-end mt-3">
+            <button type="submit" class="btn btn-warning">Reset Hours</button>
+        </form>
+
+        <!-- Student Cards -->
+        <div class="row mt-4">
+            {% for student in students %}
+            <div class="col-md-4 mb-3">
+                <div class="card">
+                    <img src="data:image/png;base64,{{ student.image }}" class="card-img-top" alt="{{ student.name }}">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ student.name }}</h5>
+                        <p class="card-text">Role: {{ student.role }}</p>
+                        <p class="card-text">Hours Worked: {{ student.attendance.total_hours | default(0.0) }}</p>
+                        <!-- Liste des tâches -->
+<!-- Liste des tâches -->
+                    <div class="mt-3">
+                        <h6>Tasks:</h6>
+                        <ul class="list-group">
+                            {% if student.tasks %}
+                                {% for task in student.tasks %}
+                                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                                        {{ task.description }}
+                                        <form method="POST" action="{{ url_for('main.remove_task', student_id=student._id, task_id=task._id) }}">
+                                            <button type="submit" class="btn btn-sm btn-danger">Remove</button>
+                                        </form>
+                                    </li>
+                                {% endfor %}
+                            {% else %}
+                                <li class="list-group-item text-muted">No tasks assigned.</li>
+                            {% endif %}
+                        </ul>
+                    </div>
+
+                    <!-- Ajouter une tâche -->
+                    <form method="POST" action="{{ url_for('main.add_task', student_id=student._id) }}" class="mt-3">
+                        <div class="input-group">
+                            <input type="text" name="task_description" class="form-control" placeholder="New Task" required>
+                            <button type="submit" class="btn btn-primary">Add</button>
+                        </div>
+                    </form>
+                        <!-- Status -->
+                        <p class="card-text">
+                            <strong>Status:</strong>
+                            {% if student.status == "Active" %}
+                                <span class="text-success">{{ student.status }}</span>
+                            {% elif student.status == "Paused" %}
+                                <span class="text-warning">{{ student.status }}</span>
+                            {% else %}
+                                <span class="text-danger">{{ student.status }}</span>
+                            {% endif %}
+                        </p>
+
+                        <!-- Start/Stop Day Button -->
+                        <form method="POST" action="{{ url_for('main.toggle_day', student_id=student._id) }}" class="mt-2">
+                            <button type="submit" class="btn btn-success w-100">Start/Stop Day</button>
+                        </form>
+
+                        <!-- Pause/Resume Button -->
+                        <form method="POST" action="{{ url_for('main.toggle_pause', student_id=student._id) }}" class="mt-2">
+                            <button type="submit" class="btn btn-warning w-100">Pause/Resume</button>
+                        </form>
+
+                        <!-- Remove Button -->
+                        <form method="POST" action="{{ url_for('main.remove_student', student_id=student._id) }}" class="mt-2">
+                            <button type="submit" class="btn btn-danger w-100">Remove</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+
+        <!-- Add Student Section -->
+        <div class="mt-5">
+            <h2>Add New Student</h2>
+            <form method="POST" action="{{ url_for('main.add_student') }}" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label for="name" class="form-label">Name:</label>
+                    <input type="text" name="name" id="name" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label for="role" class="form-label">Role:</label>
+                    <input type="text" name="role" id="role" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label for="image" class="form-label">Profile Image:</label>
+                    <input type="file" name="image" id="image" class="form-control" accept="image/*" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Add Student</button>
+            </form>
+            
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

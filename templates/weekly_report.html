@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly Report</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container mt-4">
+        <h1>Weekly Report</h1>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Date</th>
+                    <th>Total Hours</th>
+                    <th>Student Signature</th>
+                    <th>Professor Signature</th>
+                    <th>Actions</th>
+                    <th>Tasks</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in report_data %}
+                <tr data-name="{{ record['_id']['name'] }}" data-date="{{ record['_id']['date'] }}">
+                    <td>{{ record['_id']['name'] }}</td>
+                    <td>{{ record['_id']['date'] }}</td>
+                    <td>{{ record['total_hours'] }}</td>
+                    <td class="student-status">
+                        {% if record.get('student_signature') %}
+                        Signed
+                        {% else %}
+                        Not Signed
+                        {% endif %}
+                    </td>
+                    <td class="professor-status">
+                        {% if record.get('professor_signature') %}
+                        Signed
+                        {% else %}
+                        Not Signed
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn btn-primary btn-sm"
+                                onclick="showSignatureModal('student', '{{ record['_id']['name'] }}', '{{ record['_id']['date'] }}')">
+                            Student Sign
+                        </button>
+                        <button class="btn btn-secondary btn-sm"
+                                onclick="showSignatureModal('professor', '{{ record['_id']['name'] }}', '{{ record['_id']['date'] }}')">
+                            Professor Sign
+                        </button>
+                    </td>
+                    <td>
+                        {% if record.tasks %}
+                            <ul>
+                                {% for task_list in record.tasks %}
+                                    {% for task in task_list %}
+                                        <li>{{ task.description }}</li>
+                                    {% endfor %}
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <span class="text-muted">No tasks</span>
+                        {% endif %}
+                    </td>
+                    
+                </tr>
+                {% endfor %}
+            </tbody>
+            
+        </table>
+        <a href="/" class="btn btn-secondary mt-3">Back to Home</a>
+    </div>
+
+    <!-- Modale pour la signature -->
+    <div class="modal" id="signatureModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Sign</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <canvas id="signature-pad" width="400" height="200" style="border:1px solid black;"></canvas>
+                    <button id="clear-signature" class="btn btn-secondary mt-2">Clear</button>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" id="save-signature">Save</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='signature.js') }}"></script>
+</body>
+</html>
