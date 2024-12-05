@@ -1,10 +1,29 @@
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for
+# Flask
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
+
+# Flask-Login
+from flask_login import login_required, current_user
+
+# UUID pour générer des identifiants uniques
 from uuid import uuid4
+
+# MongoDB ObjectId pour gérer les identifiants des documents
 from bson.objectid import ObjectId
+
+# Gestion des dates et heures
 from datetime import datetime, timedelta
+
+# Pillow pour la manipulation des images
 from PIL import Image
+
+# Manipulation des fichiers en mémoire et conversion en Base64
 import io
 import base64
+
+# Extensions Flask (MongoDB doit être initialisé dans un fichier `extensions.py`)
+from extensions import mongo
+
+
 
 main = Blueprint("main", __name__)
 
@@ -41,29 +60,46 @@ def configure_routes(blueprint, mongo):
     students_collection = mongo.db.students
     attendance_collection = mongo.db.attendance
 
-    @blueprint.route("/")
+    @main.route("/")
+    @login_required
     def index():
         """
-        Affiche la page principale avec les étudiants et leurs tâches.
+        Affiche la page principale avec les étudiants.
+        - Les administrateurs voient tous les étudiants.
+        - Les employés ne voient que les étudiants qu'ils ont ajoutés.
         """
-        students = list(students_collection.find())
+        if current_user.role == "admin":
+            # L'administrateur voit tous les étudiants
+            students = list(students_collection.find())
+        else:
+            # L'employé ne voit que les étudiants qu'il a ajoutés
+            students = list(students_collection.find({"employee_card_id": current_user.id}))
+
+
+
         for student in students:
+            print( student)
             student["_id"] = str(student["_id"])  # Convertir ObjectId en string pour Jinja
             attendance = student.get("attendance", {})
             if attendance.get("start_time") and not attendance.get("pause_time"):
-                student["status"] = "Active"  # Travaillant actuellement
+                student["status"] = "Active"
             elif attendance.get("pause_time"):
-                student["status"] = "Paused"  # En pause
+                student["status"] = "Paused"
             else:
-                student["status"] = "Inactive"  # Journée non démarrée ou terminée
+                student["status"] = "Inactive"
+
+            for task in student.get("tasks", []):
+                if "_id" in task:
+                    task["_id"] = str(task["_id"])
+
         return render_template("index.html", students=students)
+
+
+
 
 
     @main.route("/add_student", methods=["POST"])
     def add_student():
-        """
-        Ajoute un étudiant avec les informations fournies.
-        """
         name = request.form.get("name")
         role = request.form.get("role")
         image = request.files.get("image")
@@ -77,33 +113,53 @@ def configure_routes(blueprint, mongo):
         try:
             # Traitement de l'image
             img = Image.open(image)
-            img.thumbnail((150, 150), Image.LANCZOS)  # Utilisation de LANCZOS au lieu de ANTIALIAS
+            img.thumbnail((150, 150), Image.LANCZOS)
             buffer = io.BytesIO()
             img.save(buffer, format="PNG")
             encoded_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
             # Insertion dans la base de données
-            students_collection.insert_one({
+            student_data = {
                 "name": name,
                 "role": role,
                 "image": encoded_image,
                 "tasks": [],
-                "attendance": {}
-            })
+                "attendance": {},
+                "employee_card_id": current_user.id  # Utilise l'ID de l'utilisateur connecté
+            }
+
+            students_collection.insert_one(student_data)
             return redirect(url_for("main.index"))
         except Exception as e:
             return jsonify({"error": f"Failed to add student: {str(e)}"}), 500
+
+
+
         
     @main.route("/remove_student/<student_id>", methods=["POST"])
+    @login_required
     def remove_student(student_id):
         """
         Supprime un étudiant par son ID.
         """
+        student = students_collection.find_one({"_id": ObjectId(student_id)})
+        if not student:
+            flash("Student not found.")
+            return redirect(url_for("main.index"))
+
+        if current_user.role != "admin" and student.get("added_by") != current_user.employee_card_id:
+            flash("You are not authorized to remove this student.")
+            return redirect(url_for("main.index"))
+
         try:
             students_collection.delete_one({"_id": ObjectId(student_id)})
-            return redirect(url_for("main.index"))
+            flash("Student removed successfully.")
         except Exception as e:
-            return jsonify({"error": f"Failed to remove student: {str(e)}"}), 500
+            flash(f"Failed to remove student: {str(e)}")
+
+        return redirect(url_for("main.index"))
+
+
 
 
 
@@ -320,7 +376,7 @@ def configure_routes(blueprint, mongo):
         )
         return jsonify({"message": "Signature saved successfully"}), 200
     
-    @blueprint.route("/save_signature", methods=["POST"])
+    @main.route("/save_signature", methods=["POST"])
     def save_signature():
         """
         Sauvegarde la signature pour un étudiant ou un professeur.

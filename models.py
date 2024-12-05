@@ -1,17 +1,28 @@
-from flask_pymongo import PyMongo
+
 from datetime import datetime, timedelta
+from bson.objectid import ObjectId
+from flask_login import UserMixin
+from extensions import mongo
 
-db = PyMongo()
 
+
+# MongoDB collections (à lier depuis app.py)
+
+
+# Modèle utilisateur pour Flask-Login
+class User(UserMixin):
+    def __init__(self, user_data):
+        self.id = str(user_data["_id"])
+        self.username = user_data["username"]
+        self.role = user_data["role"]
+        self.employee_card_id = user_data.get("employee_card_id")
 
 def get_students():
-    students = list(db.students.find())
+    students = list(mongo.students.find())
     for student in students:
         student["_id"] = str(student["_id"])
     return students
 
-def get_students():
-    return list(db.db.students.find())
 
 def add_student(name, role, image):
     student_data = {
@@ -21,10 +32,10 @@ def add_student(name, role, image):
         "created_at": datetime.now(),
         "active": True
     }
-    db.db.students.insert_one(student_data)
+    mongo.db.students.insert_one(student_data)
 
 def get_tasks(student_name):
-    return list(db.db.tasks.find({"name": student_name}).sort("timestamp", 1))
+    return list(mongo.db.tasks.find({"name": student_name}).sort("timestamp", 1))
 
 def add_task(student_name, task_description):
     task_data = {
@@ -32,10 +43,10 @@ def add_task(student_name, task_description):
         "task": task_description,
         "timestamp": datetime.now(),
     }
-    db.db.tasks.insert_one(task_data)
+    mongo.db.tasks.insert_one(task_data)
 
 def add_signature(name, date, role, signature):
-    db.db.signatures.update_one(
+    mongo.db.signatures.update_one(
         {"name": name, "date": date},
         {"$set": {f"{role}_signature": signature}},
         upsert=True
