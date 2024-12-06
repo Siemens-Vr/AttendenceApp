@@ -7,18 +7,30 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
-    <h1>Login</h1>
-    <form method="POST" action="{{ url_for('auth.login') }}">
-        <label for="username">Username:</label>
-        <input type="text" name="username" id="username" required>
-        <br>
-        <label for="password">Password:</label>
-        <input type="password" name="password" id="password" required>
-        <br>
-        <button type="submit">Login</button>
-    </form>
+    <div class="form">
+        <div>
+            <h1>Login</h1>
+            <form method="POST" action="{{ url_for('auth.login') }}">
+                <div class="divInput">
+                    <label for="username">Username</label>
+                    <input type="text" name="username" id="username" required>
+                </div>
+                
+                <div class="divInput">
+                    <label for="password">Password</label>
+                    <input type="password" name="password" id="password" required>
+                </div>
+            
+                <button type="submit">Login</button>
+            </form>
+            <!-- Lien vers la page d'inscription -->
+            <p>No account ? <a href="{{ url_for('auth.register') }}">Create one !</a></p>
+        </div>
+        
+    
+        
+    </div>
 
-    <!-- Lien vers la page d'inscription -->
-    <p>No account ? <a href="{{ url_for('auth.register') }}">Create one !</a></p>
+
 </body>
 </html>

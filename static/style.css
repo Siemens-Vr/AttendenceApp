@@ -3,6 +3,64 @@ body {
     margin: 20px;
 }
 
+.form {
+    display: flex ;
+    justify-content: center;
+    align-items: center;
+    margin-top: 200px;
+    width: 300px;
+    padding: 20px;
+    border-radius: 15px;
+    background: white;
+    box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2), 0 -10px 15px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    position: relative;
+    animation: float 3s infinite ease-in-out;
+    margin-left: 675px;
+}
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.form form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.form button {
+    width: 100%;
+    padding: 10px;
+    background: green;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
+.form button:hover {
+    background: rgb(47, 255, 64);
+}
+.divInput{
+    display: flex;
+    flex-direction: column;
+    
+
+}
+.divInput input {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    border: 2px solid #8f8f8f;
+    border-radius: 5px;
+}
+.divInput label {
+    margin-left: -120px;
+}
 h1, h2 {
     color: #333;
 }

@@ -78,10 +78,10 @@ def create_app():
             config_data = json.load(file)
             app.config.update(config_data)
 
-    @app.before_request
-    def restrict_ip():
-        if not is_ip_allowed():
-            abort(403)
+    #@app.before_request
+    #def restrict_ip():
+        #if not is_ip_allowed():
+        #    abort(403)
 
     # Configurez les routes
     configure_routes(main_blueprint, mongo)
