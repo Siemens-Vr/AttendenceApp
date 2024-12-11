@@ -18,6 +18,7 @@ login_manager = LoginManager()
 
 
 
+
 @login_manager.user_loader
 def load_user(user_id):
     if not mongo.cx:  # Vérifie si `mongo` est connecté
@@ -92,8 +93,9 @@ def create_app():
 
     return app
 
+app = create_app()
 
 if __name__ == "__main__":
 
-    app = create_app()
+
     app.run(debug=True, host="0.0.0.0", port=5000)

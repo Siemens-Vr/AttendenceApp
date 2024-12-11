@@ -3,34 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <title>Register</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style2.css') }}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
     <div class="form">
         <div>
             <h1>Register</h1>
+    
+            <!-- Affiche uniquement le dernier message de flash -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% set last_message = messages[-1] %}
+                <div class="alert alert-{{ last_message[0] }}">{{ last_message[1] }}</div>
+            {% endif %}
+            {% endwith %}
+    
             <form method="POST" action="{{ url_for('auth.register') }}">
-                <div class="divInput">  
-                    <label for="username">Username</label>
-                    <input type="text" name="username" id="username" required>
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" name="username" id="username" class="form-control" required>
                 </div>
-                
-                <div class="divInput">
-                    <label for="password">Password</label>
-                    <input type="password" name="password" id="password" required>
+    
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" name="password" id="password" class="form-control" required>
                 </div>
-                <div class="divInput">
-                    <label for="role">Role:</label>
-                    <select name="role" id="role">
-                        <option value="admin">Admin</option>
+    
+                <div class="mb-3">
+                    <label for="role" class="form-label">Role</label>
+                    <select name="role" id="role" class="form-select">
                         <option value="employee">Employee</option>
                     </select>
                 </div>
-                <button type="submit">Register</button>
+    
+                <button type="submit" class="btn btn-primary">Register</button>
             </form>
-
-    <!-- Lien pour retourner à la page de connexion -->
-    <p>Already an account ? <a href="{{ url_for('auth.login') }}">Log in</a></p>
+    
+            <p class="mt-3">Already have an account? <a href="{{ url_for('auth.login') }}">Log in</a></p>
+        </div>
+    </div>
+    
+    
 </body>
 </html>

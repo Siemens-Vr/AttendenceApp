@@ -57,35 +57,39 @@ def logout():
 @auth.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-        username = request.form["username"]  # Normalisation
-        password = request.form["password"]
-        role = request.form["role"]  # "admin" ou "employee"
-        
-        # Vérification de l'existence de l'utilisateur
-        if mongo.db.users.find_one({"username": username}):
-            flash("Username already exists")
+        try:
+            username = request.form.get("username").strip()  # Normalisation
+            password = request.form.get("password").strip()
+            role = request.form.get("role")
+
+            # Vérification de l'existence de l'utilisateur
+            if mongo.db.users.find_one({"username": username}):
+                flash("Username already exists", "warning")
+                return redirect(url_for("auth.register"))
+
+            # Validation du mot de passe
+            if len(password) < 8 or not any(char.isdigit() for char in password) or not any(char.isalpha() for char in password):
+                flash("Password must be at least 8 characters long and include both letters and numbers", "danger")
+                return redirect(url_for("auth.register"))
+
+            # Hachage du mot de passe
+            hashed_password = generate_password_hash(password, method="pbkdf2:sha256")
+
+            # Création du nouvel utilisateur
+            user = {
+                "username": username,
+                "password": hashed_password,
+                "role": role,
+            }
+
+            # Insertion dans la base de données
+            mongo.db.users.insert_one(user)
+            flash("User registered successfully", "success")
+            return redirect(url_for("auth.login"))
+
+        except Exception as e:
+            flash(f"An error occurred: {e}", "danger")
             return redirect(url_for("auth.register"))
-
-        # Validation du mot de passe
-        if len(password) < 8 or not any(char.isdigit() for char in password) or not any(char.isalpha() for char in password):
-            flash("Password must be at least 8 characters long and include both letters and numbers")
-            return redirect(url_for("auth.register"))
-
-        # Hachage du mot de passe
-        hashed_password = generate_password_hash(password, method="pbkdf2:sha256")
-
-        # Création du nouvel utilisateur
-        user = {
-            "username": username,
-            "password": hashed_password,
-            "role": role,
-        }
-
-
-
-        # Insertion dans la base de données
-        mongo.db.users.insert_one(user)
-        flash("User registered successfully")
-        return redirect(url_for("auth.login"))
 
     return render_template("register.html")
+

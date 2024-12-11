@@ -18,10 +18,7 @@
             </form>
         </div>
 
-        <!-- Weekly Report Button -->
-        <div class="text-end mt-3">
-            <a href="{{ url_for('main.weekly_report') }}" class="btn btn-primary">View Weekly Report</a>
-        </div>
+
         <!-- Reset Hours Button -->
         <form method="POST" action="{{ url_for('main.reset_hours') }}" class="text-end mt-3">
             <button type="submit" class="btn btn-warning">Reset Hours</button>
@@ -46,10 +43,30 @@
                                         {% if student.tasks %}
                                             {% for task in student.tasks %}
                                                 <li class="list-group-item d-flex justify-content-between align-items-center">
-                                                    {{ task.description }}
-                                                    <form method="POST" action="{{ url_for('main.remove_task', student_id=student._id, task_id=task._id) }}">
-                                                        <button type="submit" class="btn btn-sm btn-danger">Remove</button>
-                                                    </form>
+                                                    <div>
+                                                        <strong>{{ task.description }}</strong><br>
+                                                        {% if task.duration %}
+                                                            Duration: {{ (task.duration // 3600) }}h {{ ((task.duration % 3600) // 60) }}m {{ (task.duration % 60) }}s
+                                                        {% endif %}
+                                                        <br>
+                                                        {% if task.start_time %}
+                                                            Start: {{ task.start_time }}
+                                                        {% endif %}
+                                                        {% if task.end_time %}
+                                                            End: {{ task.end_time }}
+                                                        {% endif %}
+                                                    </div>
+                                                    <div>
+                                                        <form method="POST" action="{{ url_for('main.start_task', student_id=student._id, task_id=task._id) }}" style="display: inline;">
+                                                            <button type="submit" class="btn btn-sm btn-success">Start</button>
+                                                        </form>
+                                                        <form method="POST" action="{{ url_for('main.end_task', student_id=student._id, task_id=task._id) }}" style="display: inline;">
+                                                            <button type="submit" class="btn btn-sm btn-danger">End</button>
+                                                        </form>
+                                                        <form method="POST" action="{{ url_for('main.remove_task', student_id=student._id, task_id=task._id) }}" style="display: inline;">
+                                                            <button type="submit" class="btn btn-sm btn-secondary">Remove</button>
+                                                        </form>
+                                                    </div>
                                                 </li>
                                             {% endfor %}
                                         {% else %}
@@ -57,6 +74,7 @@
                                         {% endif %}
                                     </ul>
                                 </div>
+                                
 
                                 <!-- Add Task -->
                                 <form method="POST" action="{{ url_for('main.add_task', student_id=student._id) }}" class="mt-3">
@@ -92,6 +110,11 @@
                                 <form method="POST" action="{{ url_for('main.remove_student', student_id=student._id) }}" class="mt-2">
                                     <button type="submit" class="btn btn-danger w-100">Remove</button>
                                 </form>
+                                <!-- Weekly Report Button -->
+                                <form method="GET" action="{{ url_for('main.student_weekly_report', student_id=student._id) }}" class="mt-2">
+                                    <button type="submit" class="btn btn-info w-100">Weekly Report</button>
+                                </form>
+
                             </div>
                         </div>
                     </div>

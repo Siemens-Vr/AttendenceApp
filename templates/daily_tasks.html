@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Tasks for {{ date }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center">Tasks for {{ student.name }} on {{ date }}</h1>
+        <ul class="list-group mt-4">
+            {% for task in tasks %}
+            <li class="list-group-item">
+                <strong>{{ task.description }}</strong>
+                <br>
+                Duration: 
+                {% if task.duration %}
+                    {{ (task.duration // 3600) }}h {{ ((task.duration % 3600) // 60) }}m {{ (task.duration % 60) }}s
+                {% else %}
+                    Not started
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        <a href="{{ url_for('main.weekly_report', student_id=student._id) }}" class="btn btn-secondary mt-4">Back to Weekly Report</a>
+    </div>
+</body>
+</html>

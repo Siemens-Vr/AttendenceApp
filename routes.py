@@ -15,11 +15,12 @@ from datetime import datetime, timedelta
 
 # Pillow pour la manipulation des images
 from PIL import Image
-
+from base64 import b64decode
 # Manipulation des fichiers en mémoire et conversion en Base64
-import io
+import io, os
 import base64
-
+from datetime import datetime
+from bson.objectid import ObjectId
 # Extensions Flask (MongoDB doit être initialisé dans un fichier `extensions.py`)
 from extensions import mongo
 
@@ -59,7 +60,7 @@ def configure_routes(blueprint, mongo):
     # Récupération des collections MongoDB
     students_collection = mongo.db.students
     attendance_collection = mongo.db.attendance
-
+    tasks_collection = mongo.db.tasks
     @main.route("/")
     @login_required
     def index():
@@ -166,24 +167,34 @@ def configure_routes(blueprint, mongo):
 
     @main.route("/add_task/<student_id>", methods=["POST"])
     def add_task(student_id):
-        """
-        Ajoute une tâche à un étudiant spécifique.
-        """
         task_description = request.form.get("task_description")
         if not task_description:
             return jsonify({"error": "Task description is required"}), 400
 
+        current_date = datetime.now()
         task = {
             "_id": str(uuid4()),  # ID unique pour chaque tâche
             "description": task_description,
-            "timestamp": datetime.now()
+            "date": current_date,  # Date associée à l'enregistrement d'attendance
+            "start_time": None,
+            "end_time": None,
+            "duration": 0  # Initialisé à 0
         }
 
         students_collection.update_one(
             {"_id": ObjectId(student_id)},
             {"$push": {"tasks": task}}
         )
+
+        # Assurez-vous d'ajouter une relation avec `attendance` ici si nécessaire
+        attendance_collection.update_one(
+            {"name": students_collection.find_one({"_id": ObjectId(student_id)})["name"], "date": current_date},
+            {"$push": {"tasks": task}},
+            upsert=True
+        )
+
         return redirect(url_for("main.index"))
+
 
     @main.route('/remove_task/<string:student_id>/<string:task_id>', methods=['POST'])
     def remove_task(student_id, task_id):
@@ -217,52 +228,109 @@ def configure_routes(blueprint, mongo):
 
 
 
-    @main.route("/tasks/<student_id>")
-    def view_tasks(student_id):
-        """
-        Affiche les tâches d'un étudiant spécifique.
-        """
+    @main.route("/view_tasks/<student_id>/<date>")
+    @login_required
+    def view_tasks(student_id, date):
+        # Vérifiez si l'étudiant existe
         student = students_collection.find_one({"_id": ObjectId(student_id)})
         if not student:
             return "Student not found", 404
 
-        tasks = student.get("tasks", [])
-        return render_template("tasks.html", student=student, tasks=tasks)
+        # Vérifiez si l'utilisateur a accès
+        if current_user.role != "admin" and student.get("employee_card_id") != str(current_user.id):
+            return "Unauthorized access", 403
+
+        # Obtenez les tâches pour cette date
+        tasks = list(tasks_collection.find({
+            "student_id": student_id,
+            "date": datetime.strptime(date, "%Y-%m-%d")
+        }))
+
+        return render_template("tasks.html", student=student, date=date, tasks=tasks)
+
 
 
 
     @main.route("/toggle_day/<student_id>", methods=["POST"])
     def toggle_day(student_id):
-        """
-        Commence ou termine une journée pour un étudiant.
-        """
         student = students_collection.find_one({"_id": ObjectId(student_id)})
         if not student:
             return jsonify({"error": "Student not found"}), 404
 
-        # Récupérer les données de présence
         attendance = student.get("attendance", {})
         current_time = datetime.now()
 
         if not attendance.get("start_time"):
-            # Démarrer la journée
+            # Start a new day
             attendance["start_time"] = current_time
             attendance["pause_time"] = None
+
+            # Create a new record in `attendance_collection`
+            attendance_record = {
+                "name": student["name"],
+                "date": datetime.combine(current_time.date(), datetime.min.time()),  # Date only, without time
+                "start_time": current_time,  # Include start time for potential debugging
+                "end_time": None,  # Not finished yet
+                "hours_worked": 0.0,  # Initially 0
+                "student_signature": "Unsigned",
+                "professor_signature": "Unsigned",
+                "tasks": []  # Initialize an empty task list
+            }
+            attendance_collection.insert_one(attendance_record)
         else:
-            # Terminer la journée
+            # Stop the day and calculate hours worked
             start_time = attendance.get("start_time")
             total_hours = attendance.get("total_hours", 0)
 
             if start_time:
-                # Calculer les heures travaillées
-                total_hours += (current_time - start_time).total_seconds() / 3600
+                hours_worked = (current_time - start_time).total_seconds() / 3600
+                total_hours += hours_worked
+
+                # Update the existing record in `attendance_collection`
+                attendance_collection.update_one(
+                    {
+                        "name": student["name"],
+                        "date": datetime.combine(current_time.date(), datetime.min.time())  # Match by date only
+                    },
+                    {
+                        "$set": {
+                            "end_time": current_time,
+                            "hours_worked": total_hours
+                        }
+                    }
+                )
 
             attendance["total_hours"] = total_hours
-            attendance["start_time"] = None  # Réinitialiser le temps de départ
+            attendance["start_time"] = None  # Reset the start time
 
-        # Mettre à jour les données dans MongoDB
+        # Update the student's attendance in `students_collection`
         students_collection.update_one({"_id": ObjectId(student_id)}, {"$set": {"attendance": attendance}})
         return redirect(url_for("main.index"))
+
+
+    @main.route("/delete_tasks/<student_id>", methods=["POST"])
+    @login_required
+    def delete_tasks(student_id):
+        student = students_collection.find_one({"_id": ObjectId(student_id)})
+        if not student:
+            return "Student not found", 404
+
+        # Vérifiez les autorisations
+        if current_user.role != "admin" and student.get("employee_card_id") != str(current_user.id):
+            return "Unauthorized access", 403
+
+        # Récupérez les identifiants des tâches à supprimer
+        task_ids = request.form.getlist("task_ids")
+        if not task_ids:
+            flash("No tasks selected for deletion", "warning")
+            return redirect(url_for("main.student_weekly_report", student_id=student_id))
+
+        # Supprimez les tâches sélectionnées
+        for task_id in task_ids:
+            tasks_collection.delete_one({"_id": ObjectId(task_id)})
+
+        flash("Selected tasks deleted successfully", "success")
+        return redirect(url_for("main.student_weekly_report", student_id=student_id))
 
 
     @main.route("/toggle_pause/<student_id>", methods=["POST"])
@@ -322,60 +390,121 @@ def configure_routes(blueprint, mongo):
         )
         return redirect(url_for("main.index"))
 
-    @main.route("/weekly_report")
-    def weekly_report():
-        """
-        Génère le rapport hebdomadaire.
-        """
+    @main.route("/student_weekly_report/<student_id>")
+    @login_required
+    def student_weekly_report(student_id):
+        student = students_collection.find_one({"_id": ObjectId(student_id)})
+        if not student:
+            return "Student not found", 404
+
+        # Vérifiez les autorisations
+        if current_user.role != "admin" and student.get("employee_card_id") != str(current_user.id):
+            return "Unauthorized access", 403
+
+        # Récupérez les enregistrements hebdomadaires
         end_date = datetime.now()
         start_date = end_date - timedelta(days=7)
 
-        # Pipeline MongoDB pour calculer les heures travaillées
-        pipeline = [
-            {"$match": {
-                "attendance.start_time": {"$gte": start_date, "$lte": end_date}
-            }},
-            {"$group": {
-                "_id": {"name": "$name", "date": "$attendance.start_time"},
-                "total_hours": {"$sum": "$attendance.total_hours"},
-                "tasks": {"$push": "$tasks"}  # Ajouter les tâches pour chaque étudiant
-            }},
-            {"$sort": {"_id.date": 1}}
+        # Pipeline d'agrégation pour regrouper par jour, mois et année
+        records = list(
+            attendance_collection.aggregate([
+                {"$match": {"name": student["name"], "date": {"$gte": start_date, "$lte": end_date}}},
+                {
+                    "$group": {
+                        "_id": {
+                            "year": {"$year": "$date"},
+                            "month": {"$month": "$date"},
+                            "day": {"$dayOfMonth": "$date"}
+                        },
+                        "total_hours": {"$sum": "$hours_worked"},
+                        "tasks": {"$push": "$tasks"},
+                        "student_signature": {"$first": "$student_signature"},
+                        "professor_signature": {"$first": "$professor_signature"}
+                    }
+                },
+                {"$sort": {"_id.year": 1, "_id.month": 1, "_id.day": 1}}
+            ])
+        )
+
+        # Format des données pour le frontend
+        formatted_records = [
+            {
+                "date": datetime(record["_id"]["year"], record["_id"]["month"], record["_id"]["day"]),
+                "hours_worked": record["total_hours"],
+                "tasks": [task for tasks_list in record["tasks"] for task in tasks_list],  # Aplatir les listes de tâches
+                "student_signature": record["student_signature"],
+                "professor_signature": record["professor_signature"]
+            }
+            for record in records
         ]
 
-        report_data = list(students_collection.aggregate(pipeline))
-
-        # Convertir les dates de la clé "_id.date" en objets datetime si elles sont des chaînes
-        for record in report_data:
-            date = record["_id"].get("date")
-            if isinstance(date, str):
-                record["_id"]["date"] = datetime.fromisoformat(date)  # Conversion ISO format en datetime
-
-        # Ajout des étudiants et de leurs tâches
-        students = list(students_collection.find({}, {"name": 1, "tasks": 1, "_id": 0}))
-
-        return render_template("weekly_report.html", report_data=report_data, students=students)
+        return render_template("student_weekly_report.html", student=student, records=formatted_records)
 
 
-    @main.route("/sign", methods=["POST"])
-    def sign():
-        data = request.json
-        signature = data.get("signature")
-        role = data.get("role")
-        name = data.get("name")
-        date = data.get("date")
 
-        if not signature or not role or not name or not date:
-            return jsonify({"error": "Invalid data"}), 400
 
-        # Update the database
-        mongo.db.attendance.update_one(
-            {"_id.name": name, "_id.date": date},
-            {"$set": {f"{role}_signature": signature}},
+
+
+
+    @main.route("/daily_tasks/<string:student_id>/<string:date>")
+    @login_required
+    def daily_tasks(student_id, date):
+        """
+        Affiche les tâches spécifiques à une date donnée pour un étudiant.
+        """
+        student = students_collection.find_one({"_id": ObjectId(student_id)})
+
+        if not student:
+            return "Student not found", 404
+
+        attendance_record = attendance_collection.find_one({
+            "student_id": student_id,
+            "date": datetime.strptime(date, "%Y-%m-%d")
+        })
+
+        if not attendance_record:
+            return "Attendance record not found for this date", 404
+
+        tasks = attendance_record.get("tasks", [])
+        return render_template("daily_tasks.html", tasks=tasks, student=student, date=date)
+
+
+    @main.route("/sign/<role>/<student_id>/<date>", methods=["POST"])
+    @login_required
+    def sign(role, student_id, date):
+        """
+        Enregistre la signature pour un étudiant ou un professeur dans la base de données sans sauvegarder de fichier.
+        """
+        signature = request.form["signature"]
+
+        # Vérifiez si l'étudiant existe
+        student = students_collection.find_one({"_id": ObjectId(student_id)})
+        if not student:
+            return "Student not found", 404
+
+        # Vérifiez les autorisations
+        if current_user.role != "admin" and student.get("employee_card_id") != str(current_user.id):
+            return "Unauthorized access", 403
+
+        # Nettoyez la date pour ne garder que la partie date
+        date_only = date.split(" ")[0]  # "2024-12-09 00:00:00" devient "2024-12-09"
+
+        # Ajoutez la signature dans la base de données
+        role_key = f"{role}_signature"
+        result = attendance_collection.update_one(
+            {"name": student["name"], "date": datetime.strptime(date_only, "%Y-%m-%d")},
+            {"$set": {role_key: "Signed"}},  # Exemple : Enregistrez "Signed"
             upsert=True
         )
-        return jsonify({"message": "Signature saved successfully"}), 200
-    
+
+        # Log pour vérification
+        print(f"Signature enregistrée : {role_key} -> 'Signed', Result: {result.modified_count}")
+
+        flash(f"{role.capitalize()} signature added successfully.")
+        return redirect(url_for("main.student_weekly_report", student_id=student_id))
+
+
+
     @main.route("/save_signature", methods=["POST"])
     def save_signature():
         """
@@ -425,3 +554,40 @@ def configure_routes(blueprint, mongo):
             )
 
         return redirect(url_for("main.index"))
+    
+    @main.route("/start_task/<string:student_id>/<string:task_id>", methods=["POST"])
+    def start_task(student_id, task_id):
+        """
+        Démarre une tâche spécifique pour un étudiant.
+        """
+        current_time = datetime.now()
+        students_collection.update_one(
+            {"_id": ObjectId(student_id), "tasks._id": task_id},
+            {"$set": {"tasks.$.start_time": current_time, "tasks.$.end_time": None}}
+        )
+        return redirect(url_for("main.index"))
+    
+    @main.route("/end_task/<string:student_id>/<string:task_id>", methods=["POST"])
+    def end_task(student_id, task_id):
+        """
+        Termine une tâche spécifique pour un étudiant et calcule la durée.
+        """
+        current_time = datetime.now()
+        student = students_collection.find_one({"_id": ObjectId(student_id)})
+        
+        if not student:
+            return "Student not found", 404
+        
+        task = next((t for t in student["tasks"] if t["_id"] == task_id), None)
+        if not task or not task.get("start_time"):
+            return "Task not started or does not exist", 400
+
+        start_time = task["start_time"]
+        duration = (current_time - start_time).total_seconds()
+        
+        students_collection.update_one(
+            {"_id": ObjectId(student_id), "tasks._id": task_id},
+            {"$set": {"tasks.$.end_time": current_time, "tasks.$.duration": duration}}
+        )
+        return redirect(url_for("main.index"))
+
